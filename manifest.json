@@ -1,0 +1,25 @@
+{
+  "name": "R.T.H — Road To Hangover",
+  "short_name": "R.T.H",
+  "description": "Application de gestion de setlist, accords et sessions live pour musiciens en Polynésie.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a1628",
+  "theme_color": "#64FFDA",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
