@@ -32,7 +32,7 @@
     @keyframes lockShake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
     #register-screen{display:none;position:fixed;inset:0;background:#05101f;z-index:850;flex-direction:column;align-items:center;justify-content:flex-start;padding:40px 24px 30px;overflow-y:auto}
     #register-screen.show{display:flex}
-    #admin-modal{display:none;position:fixed;inset:0;background:rgba(5,16,31,0.95);z-index:800;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(14px)}
+    #admin-modal{display:none;position:fixed;inset:0;background:rgba(5,16,31,0.95);z-index:860;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(14px)}
     #admin-modal.show{display:flex}
     #admin-box{background:rgba(10,22,40,0.99);border:1px solid rgba(255,140,0,0.25);border-radius:24px;padding:28px 22px 22px;max-width:320px;width:92%;animation:fadeUp 0.3s ease}
     .mode-badge-admin{background:linear-gradient(135deg,#FF8C00,#FF4500);color:#fff;font-size:9px;font-weight:900;letter-spacing:1px;padding:2px 7px;border-radius:8px;vertical-align:middle;margin-left:4px}
@@ -209,7 +209,7 @@
       <input class="input-field" id="reg-phone" type="tel" placeholder="+689 87 XX XX XX" style="font-size:15px"/></div>
     <button id="reg-btn" onclick="saveVisitorProfile()" style="width:100%;padding:15px;border-radius:14px;border:none;background:linear-gradient(135deg,#64FFDA,#00B894);color:#0a1628;font-weight:900;font-size:15px;cursor:not-allowed;opacity:0.4" disabled>Créer mon profil 🌺</button>
     <div style="text-align:center;margin-top:20px">
-      <button onclick="try{alert('Bouton cliqué, appel de showAdminLogin...');showAdminLogin();alert('showAdminLogin terminé sans erreur');}catch(e){alert('ERREUR: '+e.message);}" style="background:none;border:none;color:rgba(200,230,220,0.2);font-size:11px;cursor:pointer;padding:8px">Mode administrateur</button>
+      <button onclick="showAdminLogin()" style="background:none;border:none;color:rgba(200,230,220,0.2);font-size:11px;cursor:pointer;padding:8px">Mode administrateur</button>
     </div>
   </div>
 </div>
@@ -389,30 +389,6 @@
 
 <input type="file" id="file-import" accept=".json,application/json" style="display:none"/>
 
-<script>
-// ============================================================
-// DIAGNOSTIC TEMPORAIRE — affiche toute erreur JS à l'écran
-// (à retirer une fois le problème résolu)
-// ============================================================
-window.addEventListener('error', function(e){
-  var box=document.createElement('div');
-  box.style.position='fixed';box.style.top='0';box.style.left='0';box.style.right='0';
-  box.style.background='#c00';box.style.color='#fff';box.style.padding='12px';
-  box.style.fontSize='12px';box.style.zIndex='99999';box.style.fontFamily='monospace';
-  box.style.whiteSpace='pre-wrap';box.style.maxHeight='50vh';box.style.overflowY='auto';
-  box.textContent='ERREUR JS: '+e.message+'\n@ '+e.filename+':'+e.lineno+':'+e.colno;
-  document.body.appendChild(box);
-});
-window.addEventListener('unhandledrejection', function(e){
-  var box=document.createElement('div');
-  box.style.position='fixed';box.style.top='0';box.style.left='0';box.style.right='0';
-  box.style.background='#c60';box.style.color='#fff';box.style.padding='12px';
-  box.style.fontSize='12px';box.style.zIndex='99999';box.style.fontFamily='monospace';
-  box.style.whiteSpace='pre-wrap';box.style.maxHeight='50vh';box.style.overflowY='auto';
-  box.textContent='PROMESSE REJETÉE: '+(e.reason&&e.reason.message?e.reason.message:e.reason);
-  document.body.appendChild(box);
-});
-</script>
 <script>
 // ============================================================
 // FIREBASE CONFIG
