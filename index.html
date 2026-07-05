@@ -391,6 +391,30 @@
 
 <script>
 // ============================================================
+// DIAGNOSTIC TEMPORAIRE — affiche toute erreur JS à l'écran
+// (à retirer une fois le problème résolu)
+// ============================================================
+window.addEventListener('error', function(e){
+  var box=document.createElement('div');
+  box.style.position='fixed';box.style.top='0';box.style.left='0';box.style.right='0';
+  box.style.background='#c00';box.style.color='#fff';box.style.padding='12px';
+  box.style.fontSize='12px';box.style.zIndex='99999';box.style.fontFamily='monospace';
+  box.style.whiteSpace='pre-wrap';box.style.maxHeight='50vh';box.style.overflowY='auto';
+  box.textContent='ERREUR JS: '+e.message+'\n@ '+e.filename+':'+e.lineno+':'+e.colno;
+  document.body.appendChild(box);
+});
+window.addEventListener('unhandledrejection', function(e){
+  var box=document.createElement('div');
+  box.style.position='fixed';box.style.top='0';box.style.left='0';box.style.right='0';
+  box.style.background='#c60';box.style.color='#fff';box.style.padding='12px';
+  box.style.fontSize='12px';box.style.zIndex='99999';box.style.fontFamily='monospace';
+  box.style.whiteSpace='pre-wrap';box.style.maxHeight='50vh';box.style.overflowY='auto';
+  box.textContent='PROMESSE REJETÉE: '+(e.reason&&e.reason.message?e.reason.message:e.reason);
+  document.body.appendChild(box);
+});
+</script>
+<script>
+// ============================================================
 // FIREBASE CONFIG
 // ============================================================
 var _fbConfig={
