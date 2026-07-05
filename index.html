@@ -222,7 +222,7 @@
       <div style="font-size:17px;font-weight:900;color:#FF8C00">Mode Administrateur</div>
       <div style="font-size:11px;color:rgba(200,230,220,0.4);margin-top:4px" id="admin-modal-sub">Connexion Firebase sécurisée</div>
     </div>
-    <input type="email" id="admin-email-input" class="input-field" value="grimdjov2807@gmail.com" placeholder="Email admin" style="font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')document.getElementById('admin-pwd-input').focus()"/>
+    <input type="email" id="admin-email-input" class="input-field" value="nburns.huilerie@gmail.com" placeholder="Email admin" style="font-size:14px;margin-bottom:10px" onkeydown="if(event.key==='Enter')document.getElementById('admin-pwd-input').focus()"/>
     <input type="password" id="admin-pwd-input" class="input-field" placeholder="Mot de passe" style="font-size:16px;text-align:center;letter-spacing:3px;margin-bottom:10px" onkeydown="if(event.key==='Enter')tryAdminLogin()"/>
     <div id="admin-login-error" style="display:none;font-size:11px;color:#FF6B6B;text-align:center;margin-bottom:10px;font-weight:700"></div>
     <div id="admin-login-loading" style="display:none;text-align:center;font-size:12px;color:#64FFDA;margin-bottom:10px">⏳ Connexion en cours...</div>
@@ -230,7 +230,7 @@
       <button onclick="closeAdminModal()" style="flex:1;padding:12px;border-radius:12px;border:1px solid rgba(200,230,220,0.15);background:transparent;color:rgba(200,230,220,0.5);font-weight:700;font-size:13px;cursor:pointer">Annuler</button>
       <button onclick="tryAdminLogin()" id="admin-login-btn" style="flex:1.5;padding:12px;border-radius:12px;border:none;background:linear-gradient(135deg,#FF8C00,#FF4500);color:#fff;font-weight:900;font-size:13px;cursor:pointer">👑 Connexion</button>
     </div>
-    <div style="text-align:center;font-size:10px;color:rgba(200,230,220,0.2)">🔥 Firebase Auth — grimdjov2807@gmail.com</div>
+    <div style="text-align:center;font-size:10px;color:rgba(200,230,220,0.2)">🔥 Firebase Auth — nburns.huilerie@gmail.com</div>
   </div>
 </div>
 
@@ -2409,7 +2409,7 @@ function closeAdminModal(){
   if(modal)modal.classList.remove('show');
 }
 async function tryAdminLogin(){
-  var email=(document.getElementById('admin-email-input')||{}).value||'grimdjov2807@gmail.com';
+  var email=(document.getElementById('admin-email-input')||{}).value||'nburns.huilerie@gmail.com';
   var pwd=(document.getElementById('admin-pwd-input')||{}).value||'';
   var err=document.getElementById('admin-login-error');
   var loading=document.getElementById('admin-login-loading');
