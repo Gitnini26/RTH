@@ -616,6 +616,10 @@ _fbAuth.onAuthStateChanged(function(user){
       // Forcer freeHours:3 dans Firestore → écrase toute ancienne valeur (1H, 2H...)
       _fbDoc.update({freeHours:3}).catch(function(){});
       if(S.roomCode){_fbDB.collection('rooms').doc(S.roomCode).update({freeHours:3}).catch(function(){});}
+      // Fermer les écrans visiteur/login qui pourraient encore recouvrir l'interface admin
+      var rs=document.getElementById('register-screen');
+      if(rs)rs.classList.remove('show');
+      closeAdminModal();
       // Si timer encore actif → afficher directement la vue room
       var now=Date.now();
       var timerActif=S.sessionStartTime>0&&(now-S.sessionStartTime)<10800000; // 3H fixe
@@ -4339,4 +4343,3 @@ render();
 </script>
 </body>
 </html>
-<!-- redeploy trigger -->
