@@ -467,11 +467,16 @@ var PF={
 
 // -- GENRES MUSICAUX --
 // Liste de référence (utilisée pour les suggestions), mais les tags restent libres.
-var GENRES=['Tahitien','Reggae','Kaneka','Zouk','Pop','Rock','Acoustique','Ukulele','Traditionnel','Moderne'];
+var GENRES=[
+  'Tahitien','Reggae','Kaneka','Zouk','Pop','Rock','Acoustique','Ukulele','Traditionnel','Moderne',
+  'Hula','Kaina','Boléro','Valse tahitienne','Tamure / Otea','Marche','Himene tarava'
+];
 var GENRE_COLOR={
   'Tahitien':'#64FFDA','Reggae':'#4CAF50','Kaneka':'#FFC107','Zouk':'#FF4081',
   'Pop':'#9C27B0','Rock':'#FF6B6B','Acoustique':'#FF8E53','Ukulele':'#2196F3',
-  'Traditionnel':'#00B894','Moderne':'#64B5F6'
+  'Traditionnel':'#00B894','Moderne':'#64B5F6',
+  'Hula':'#E91E63','Kaina':'#D4A017','Boléro':'#8E44AD','Valse tahitienne':'#3498DB',
+  'Tamure / Otea':'#E67E22','Marche':'#795548','Himene tarava':'#16A085'
 };
 function genreColor(g){return GENRE_COLOR[g]||'#64FFDA';}
 
