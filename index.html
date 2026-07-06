@@ -513,6 +513,9 @@ var S={
   shortCode:'',
   shortLink:'',
   sessionStartTime:0,
+  songRequests:[],
+  guestBrowseAll:false,
+  guestBrowseQuery:'',
   adminName:'',pricePerSong:100,payInfo:'',freeHours:3,
   unlockedSongs:[],
   payTarget:null,
@@ -620,6 +623,7 @@ _fbAuth.onAuthStateChanged(function(user){
       S.mode='admin';
       S.freeHours=3; // Toujours 3H, quoi qu'il y ait dans Firestore
       startFirestoreSync();
+      startRoomRequestsListener();
       // Forcer freeHours:3 dans Firestore → écrase toute ancienne valeur (1H, 2H...)
       _fbDoc.update({freeHours:3}).catch(function(){});
       if(S.roomCode){_fbDB.collection('rooms').doc(S.roomCode).update({freeHours:3}).catch(function(){});}
@@ -671,7 +675,10 @@ function startFirestoreSync(){
       } else if(data.setlist&&Array.isArray(data.setlist)){
         S.setlist=data.setlist;
         try{localStorage.setItem(SLK,JSON.stringify(S.setlist));}catch(e){}
-        if(JSON.stringify(S.setlist)!==prevSetlist)changed=true;
+        if(JSON.stringify(S.setlist)!==prevSetlist){
+          changed=true;
+          refreshGuestSongsFromRoom();
+        }
       }
     } else if(data.setlist&&Array.isArray(data.setlist)){
       S.setlist=data.setlist;
@@ -1652,12 +1659,59 @@ async function getSessionURL(){
 // -- SAUVEGARDE SESSION DANS FIRESTORE (room court) --
 function saveRoomToFirestore(roomCode){
   if(!roomCode)return Promise.resolve();
+  // Fix : si le compteur horaire est périmé (ancienne session jamais réinitialisée),
+  // on le rafraîchit pour que les nouveaux invités démarrent avec un créneau complet.
+  var freeMs=(S.freeHours||3)*3600*1000;
+  var timerExpired=S.sessionStartTime>0&&(Date.now()-S.sessionStartTime)>=freeMs;
+  if(S.sessionStartTime===0||timerExpired){
+    S.sessionStartTime=Date.now();
+    try{localStorage.setItem('rth-session-start-admin',String(S.sessionStartTime));}catch(e){}
+  }
   var data=buildSessionData(true);
   if(!data)return Promise.resolve();
   data.code=roomCode;
+  data.sessionLocked=false;
+  data.songRequests=S.songRequests||[];
+  data.allSongs=(S.songs||[]).map(function(sg){
+    return {id:sg.id,title:sg.title,artist:sg.artist,key:sg.key||'',tempo:sg.tempo||'normal',genres:sg.genres||[]};
+  });
   return _fbDB.collection('rooms').doc(roomCode).set(
     Object.assign({},data,{savedAt:firebase.firestore.FieldValue.serverTimestamp()})
   ).catch(function(e){console.warn('Room save err:',e);});
+}
+// -- ÉCOUTE DES DEMANDES DE CHANSONS DES INVITÉS (admin) --
+var _roomReqUnsub=null;
+function startRoomRequestsListener(){
+  if(!S.roomCode)return;
+  if(_roomReqUnsub){_roomReqUnsub();_roomReqUnsub=null;}
+  _roomReqUnsub=_fbDB.collection('rooms').doc(S.roomCode).onSnapshot(function(doc){
+    if(!doc.exists)return;
+    var data=doc.data();
+    var newReqs=data.songRequests||[];
+    if(JSON.stringify(newReqs)!==JSON.stringify(S.songRequests||[])){
+      var wasEmpty=(S.songRequests||[]).length===0;
+      S.songRequests=newReqs;
+      if(newReqs.length>0&&wasEmpty)showToast('🌺 Nouvelle demande de chanson d\'un invité !');
+      if(S.mode==='admin'&&S.view==='library')render();
+    }
+  },function(e){console.warn('Room requests listener err:',e);});
+}
+function adminApproveRequest(songId){
+  var req=(S.songRequests||[]).find(function(r){return r.id===songId;});
+  if(!req)return;
+  if(S.setlist.indexOf(songId)<0){
+    S.setlist.push(songId);
+    try{localStorage.setItem(SLK,JSON.stringify(S.setlist));}catch(e){}
+  }
+  S.songRequests=(S.songRequests||[]).filter(function(r){return r.id!==songId;});
+  render();
+  showToast('✅ "'+req.title+'" ajoutée à la session !');
+  if(S.roomCode)saveRoomToFirestore(S.roomCode);
+}
+function adminDismissRequest(songId){
+  S.songRequests=(S.songRequests||[]).filter(function(r){return r.id!==songId;});
+  render();
+  if(S.roomCode)saveRoomToFirestore(S.roomCode);
 }
 // -- URL courte ?room= --
 function getRoomURL(){
@@ -1791,6 +1845,44 @@ function renderGuest(){
       +'<div id="guest-timer-display" style="font-size:18px;font-weight:900;color:#e0a542;font-family:monospace">'+timerStr+'</div>'
     +'</div>';
 
+  var allSongs=gs.allSongs||[];
+  var requestedIds=(gs.songRequests||[]).map(function(r){return r.id;});
+  var setlistIds=songs.map(function(s){return s.id;});
+  var browseAll=!!S.guestBrowseAll;
+
+  var repertoireBtn=(freeExpired||allSongs.length===0)?'':
+    '<button onclick="S.guestBrowseAll='+(!browseAll)+';render()" style="width:100%;padding:12px;border-radius:12px;border:1px solid rgba(224,165,66,0.25);background:'+(browseAll?'rgba(224,165,66,0.12)':'rgba(224,165,66,0.04)')+';color:#e0a542;font-weight:800;font-size:14px;cursor:pointer;margin-bottom:12px">'
+      +(browseAll?'← Retour à la set list':'📚 Voir tout le répertoire ('+allSongs.length+' chansons)')
+    +'</button>';
+
+  var browserHtml='';
+  if(browseAll&&!freeExpired){
+    var qv=(S.guestBrowseQuery||'').toLowerCase().trim();
+    var filteredAll=allSongs.filter(function(sg){
+      return !qv||(sg.title||'').toLowerCase().includes(qv)||(sg.artist||'').toLowerCase().includes(qv);
+    });
+    var rows=filteredAll.map(function(sg){
+      var inSetlist=setlistIds.indexOf(sg.id)>=0;
+      var alreadyRequested=requestedIds.indexOf(sg.id)>=0;
+      var actionBtn=inSetlist
+        ?'<span style="font-size:12px;font-weight:800;color:#00D296;padding:6px 10px;flex-shrink:0">✓ Dans la session</span>'
+        :(alreadyRequested
+          ?'<span style="font-size:12px;font-weight:800;color:rgba(255,255,255,0.55);padding:6px 10px;flex-shrink:0">⏳ Demandé</span>'
+          :'<button onclick="guestRequestSong(\''+sg.id+'\')" style="font-size:12px;font-weight:800;color:#2a1610;background:linear-gradient(135deg,#e0a542,#00B894);border:none;padding:7px 12px;border-radius:10px;cursor:pointer;flex-shrink:0">+ Demander</button>');
+      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:6px">'
+        +'<div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,'+cc(sg.key||'G')+',rgba(0,0,0,0.4));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;flex-shrink:0">'+esc(sg.key||'?')+'</div>'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.title)+'</div>'
+        +(sg.artist?'<div style="font-size:12px;color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.artist)+'</div>':'')+'</div>'
+        +actionBtn
+      +'</div>';
+    }).join('')||'<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);font-size:14px">Aucune chanson trouvée</div>';
+    browserHtml='<div style="margin-bottom:14px">'
+      +'<input value="'+esc(S.guestBrowseQuery||'')+'" oninput="S.guestBrowseQuery=this.value;render()" placeholder="Chercher un titre ou artiste..." style="width:100%;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(224,165,66,0.2);color:#fff6ea;font-size:14px;margin-bottom:10px;outline:none"/>'
+      +'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:8px">💡 Ta demande sera envoyée à l\'admin, qui pourra l\'ajouter à la session</div>'
+      +rows
+    +'</div>';
+  }
+
   return '<div style="background:linear-gradient(135deg,rgba(196,98,46,0.1),rgba(224,165,66,0.05));border:1px solid rgba(196,98,46,0.2);border-radius:18px;padding:16px;margin-bottom:14px">'
     +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
       +'<div style="font-size:26px">🌺</div>'
@@ -1799,9 +1891,40 @@ function renderGuest(){
     +'</div>'
   +'</div>'
   +timerBanner
-  +(freeExpired?'':'<div style="font-size:13px;font-weight:900;letter-spacing:1px;color:rgba(255,255,255,0.72);margin-bottom:10px">SET LIST — APPUIE SUR UNE CHANSON POUR JOUER</div>')
-  +cards
+  +repertoireBtn
+  +(browseAll?browserHtml:(freeExpired?'':'<div style="font-size:13px;font-weight:900;letter-spacing:1px;color:rgba(255,255,255,0.72);margin-bottom:10px">SET LIST — APPUIE SUR UNE CHANSON POUR JOUER</div>'+cards))
   +'<div style="margin-top:14px;text-align:center"><button onclick="localStorage.removeItem(\'rth-guest-session\');localStorage.removeItem(\'rth-session-start\');S.guestSession=null;S.view=\'visitor-home\';render()" style="background:none;border:none;color:rgba(255,255,255,0.75);font-size:14px;cursor:pointer;font-weight:700">Quitter la session</button></div>';
+}
+// -- Re-fetch les chansons (avec paroles) de la room quand l'admin modifie la setlist --
+function refreshGuestSongsFromRoom(){
+  if(S.mode==='admin'||!S.guestSession||!S.guestSession.code)return;
+  _fbDB.collection('rooms').doc(S.guestSession.code).get().then(function(doc){
+    if(!doc.exists)return;
+    var rd=doc.data();
+    S.guestSession=Object.assign({},S.guestSession,{
+      songs:rd.songs||S.guestSession.songs,
+      allSongs:rd.allSongs||S.guestSession.allSongs,
+      songRequests:rd.songRequests||[]
+    });
+    try{localStorage.setItem('rth-guest-session',JSON.stringify(S.guestSession));}catch(e){}
+    if(S.view==='guest')render();
+  }).catch(function(e){console.warn('Refresh guest songs err:',e);});
+}
+function guestRequestSong(songId){
+  var gs=S.guestSession;
+  if(!gs||!gs.code)return;
+  var sg=(gs.allSongs||[]).find(function(s){return s.id===songId;});
+  if(!sg)return;
+  var name=(S.visitorProfile&&S.visitorProfile.name)||'Un invité';
+  var reqEntry={id:sg.id,title:sg.title,artist:sg.artist||'',by:name,at:Date.now()};
+  // Mise à jour locale immédiate pour le retour visuel
+  gs.songRequests=(gs.songRequests||[]).concat([reqEntry]);
+  try{localStorage.setItem('rth-guest-session',JSON.stringify(gs));}catch(e){}
+  render();
+  showToast('🌺 Demande envoyée pour "'+sg.title+'" !');
+  _fbDB.collection('rooms').doc(gs.code).update({
+    songRequests:firebase.firestore.FieldValue.arrayUnion(reqEntry)
+  }).catch(function(e){console.warn('Request send err:',e);});
 }
 
 // -- VIEWS --
@@ -2707,6 +2830,7 @@ function enterAdminMode(){
   S.roomCode=Math.random().toString(36).substring(2,8).toUpperCase();
   try{localStorage.setItem(RK,S.roomCode);}catch(e){}
   startFirestoreSync();
+  startRoomRequestsListener();
   resetLockTimer();
   render();
   showToast('👑 Mode Admin activé — bienvenue !');
@@ -3099,6 +3223,21 @@ function renderLibrary(){
         +'<button onclick="stopPreparingSession()" style="padding:7px 12px;border-radius:9px;border:none;background:linear-gradient(135deg,#e0a542,#00B894);color:#2a1610;font-weight:900;font-size:13px;cursor:pointer">✅ Terminé</button>'
       +'</div>'
     :'';
+  var reqBanner='';
+  if(S.songRequests&&S.songRequests.length>0){
+    var reqRows=S.songRequests.map(function(r){
+      return '<div style="display:flex;align-items:center;gap:8px;padding:8px 0;border-top:1px solid rgba(255,215,0,0.1)">'
+        +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(r.title)+'</div>'
+        +'<div style="font-size:12px;color:rgba(255,255,255,0.6)">demandé par '+esc(r.by||'un invité')+'</div></div>'
+        +'<button onclick="adminApproveRequest(\''+r.id+'\')" style="background:linear-gradient(135deg,#e0a542,#00B894);color:#2a1610;border:none;padding:7px 11px;border-radius:9px;font-weight:900;font-size:12px;cursor:pointer;flex-shrink:0">✓ Ajouter</button>'
+        +'<button onclick="adminDismissRequest(\''+r.id+'\')" style="background:rgba(255,255,255,0.08);color:rgba(255,255,255,0.7);border:none;padding:7px 10px;border-radius:9px;font-weight:900;font-size:12px;cursor:pointer;flex-shrink:0">✕</button>'
+      +'</div>';
+    }).join('');
+    reqBanner='<div style="background:rgba(255,215,0,0.06);border:1.5px solid rgba(255,215,0,0.3);border-radius:12px;padding:11px 14px;margin-bottom:12px">'
+      +'<div style="font-size:13px;font-weight:900;color:#FFD700">🌺 '+S.songRequests.length+' demande'+(S.songRequests.length>1?'s':'')+' d\'invité'+(S.songRequests.length>1?'s':'')+'</div>'
+      +reqRows
+    +'</div>';
+  }
   var hasFilters=hasActiveFilters();
   var filtered=getFilteredSongs();
   if(S.sortMode==='title'){
@@ -3130,6 +3269,7 @@ function renderLibrary(){
     +'<div style="width:44px;height:44px;border-radius:50%;background:conic-gradient(#e0a542 '+prog+'deg,rgba(224,165,66,0.1) 0deg);display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#e0a542">'+S.songs.length+'</div>'
     +'</div>'
     +prepBanner
+    +reqBanner
     +'<div style="display:flex;gap:6px;margin-bottom:12px;align-items:center">'
       +'<span style="font-size:12px;color:rgba(255,255,255,0.65);font-weight:700;letter-spacing:1px;flex-shrink:0">TRIER</span>'
       +sBtn('default','Défaut','🔄')
