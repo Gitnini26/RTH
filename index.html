@@ -1857,29 +1857,10 @@ function renderGuest(){
 
   var browserHtml='';
   if(browseAll&&!freeExpired){
-    var qv=(S.guestBrowseQuery||'').toLowerCase().trim();
-    var filteredAll=allSongs.filter(function(sg){
-      return !qv||(sg.title||'').toLowerCase().includes(qv)||(sg.artist||'').toLowerCase().includes(qv);
-    });
-    var rows=filteredAll.map(function(sg){
-      var inSetlist=setlistIds.indexOf(sg.id)>=0;
-      var alreadyRequested=requestedIds.indexOf(sg.id)>=0;
-      var actionBtn=inSetlist
-        ?'<span style="font-size:12px;font-weight:800;color:#00D296;padding:6px 10px;flex-shrink:0">✓ Dans la session</span>'
-        :(alreadyRequested
-          ?'<span style="font-size:12px;font-weight:800;color:rgba(255,255,255,0.55);padding:6px 10px;flex-shrink:0">⏳ Demandé</span>'
-          :'<button onclick="guestRequestSong(\''+sg.id+'\')" style="font-size:12px;font-weight:800;color:#2a1610;background:linear-gradient(135deg,#e0a542,#00B894);border:none;padding:7px 12px;border-radius:10px;cursor:pointer;flex-shrink:0">+ Demander</button>');
-      return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:6px">'
-        +'<div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,'+cc(sg.key||'G')+',rgba(0,0,0,0.4));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;flex-shrink:0">'+esc(sg.key||'?')+'</div>'
-        +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.title)+'</div>'
-        +(sg.artist?'<div style="font-size:12px;color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.artist)+'</div>':'')+'</div>'
-        +actionBtn
-      +'</div>';
-    }).join('')||'<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);font-size:14px">Aucune chanson trouvée</div>';
     browserHtml='<div style="margin-bottom:14px">'
-      +'<input value="'+esc(S.guestBrowseQuery||'')+'" oninput="S.guestBrowseQuery=this.value;render()" placeholder="Chercher un titre ou artiste..." style="width:100%;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(224,165,66,0.2);color:#fff6ea;font-size:14px;margin-bottom:10px;outline:none"/>'
+      +'<input id="guest-browse-input" value="'+esc(S.guestBrowseQuery||'')+'" oninput="filterGuestRepertoire()" placeholder="Chercher un titre ou artiste..." style="width:100%;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(224,165,66,0.2);color:#fff6ea;font-size:14px;margin-bottom:10px;outline:none"/>'
       +'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:8px">💡 Ta demande sera envoyée à l\'admin, qui pourra l\'ajouter à la session</div>'
-      +rows
+      +'<div id="guest-browse-rows">'+renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery||'')+'</div>'
     +'</div>';
   }
 
@@ -1910,6 +1891,40 @@ function refreshGuestSongsFromRoom(){
     if(S.view==='guest')render();
   }).catch(function(e){console.warn('Refresh guest songs err:',e);});
 }
+function renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,query){
+  var qv=(query||'').toLowerCase().trim();
+  var filteredAll=allSongs.filter(function(sg){
+    return !qv||(sg.title||'').toLowerCase().includes(qv)||(sg.artist||'').toLowerCase().includes(qv);
+  });
+  return filteredAll.map(function(sg){
+    var inSetlist=setlistIds.indexOf(sg.id)>=0;
+    var alreadyRequested=requestedIds.indexOf(sg.id)>=0;
+    var actionBtn=inSetlist
+      ?'<span style="font-size:12px;font-weight:800;color:#00D296;padding:6px 10px;flex-shrink:0">✓ Dans la session</span>'
+      :(alreadyRequested
+        ?'<span style="font-size:12px;font-weight:800;color:rgba(255,255,255,0.55);padding:6px 10px;flex-shrink:0">⏳ Demandé</span>'
+        :'<button onclick="guestRequestSong(\''+sg.id+'\')" style="font-size:12px;font-weight:800;color:#2a1610;background:linear-gradient(135deg,#e0a542,#00B894);border:none;padding:7px 12px;border-radius:10px;cursor:pointer;flex-shrink:0">+ Demander</button>');
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:rgba(255,255,255,0.03);border-radius:12px;margin-bottom:6px">'
+      +'<div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,'+cc(sg.key||'G')+',rgba(0,0,0,0.4));display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;flex-shrink:0">'+esc(sg.key||'?')+'</div>'
+      +'<div style="flex:1;min-width:0"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.title)+'</div>'
+      +(sg.artist?'<div style="font-size:12px;color:rgba(255,255,255,0.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+esc(sg.artist)+'</div>':'')+'</div>'
+      +actionBtn
+    +'</div>';
+  }).join('')||'<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);font-size:14px">Aucune chanson trouvée</div>';
+}
+function filterGuestRepertoire(){
+  var inp=document.getElementById('guest-browse-input');
+  if(!inp)return;
+  S.guestBrowseQuery=inp.value;
+  var rowsDiv=document.getElementById('guest-browse-rows');
+  if(!rowsDiv)return;
+  var gs=S.guestSession;
+  if(!gs)return;
+  var allSongs=gs.allSongs||[];
+  var setlistIds=(gs.songs||[]).map(function(s){return s.id;});
+  var requestedIds=(gs.songRequests||[]).map(function(r){return r.id;});
+  rowsDiv.innerHTML=renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery);
+}
 function guestRequestSong(songId){
   var gs=S.guestSession;
   if(!gs||!gs.code)return;
@@ -1921,10 +1936,22 @@ function guestRequestSong(songId){
   gs.songRequests=(gs.songRequests||[]).concat([reqEntry]);
   try{localStorage.setItem('rth-guest-session',JSON.stringify(gs));}catch(e){}
   render();
-  showToast('🌺 Demande envoyée pour "'+sg.title+'" !');
   _fbDB.collection('rooms').doc(gs.code).update({
     songRequests:firebase.firestore.FieldValue.arrayUnion(reqEntry)
-  }).catch(function(e){console.warn('Request send err:',e);});
+  }).then(function(){
+    showToast('🌺 Demande envoyée pour "'+sg.title+'" !');
+  }).catch(function(e){
+    console.warn('Request send err:',e);
+    // Retirer la demande locale puisqu'elle n'est pas arrivée jusqu'à l'admin
+    gs.songRequests=(gs.songRequests||[]).filter(function(r){return r.id!==songId;});
+    try{localStorage.setItem('rth-guest-session',JSON.stringify(gs));}catch(e2){}
+    render();
+    if(e&&e.code==='permission-denied'){
+      showToast('⚠️ Demande refusée — contacte l\'admin (accès non autorisé)',5000);
+    } else {
+      showToast('⚠️ Échec de l\'envoi — vérifie ta connexion et réessaie',5000);
+    }
+  });
 }
 
 // -- VIEWS --
@@ -2922,6 +2949,7 @@ function shareWhatsApp(){
 function generateShortCode(){
   S.roomCode=Math.random().toString(36).substring(2,8).toUpperCase();
   try{localStorage.setItem(RK,S.roomCode);}catch(e){}
+  startRoomRequestsListener();
   S.shortCode='';S.shortLink='';
   // Terminer la session active + déconnecter tous les visiteurs
   var expiredTs=Date.now()-10800001; // 3H dans le passé → session expirée
@@ -4008,6 +4036,7 @@ function newSession(){
   S.setlist=[];saveSL();
   S.roomCode=Math.random().toString(36).substring(2,8).toUpperCase();
   try{localStorage.setItem(RK,S.roomCode);}catch(e){}
+  startRoomRequestsListener();
   var expiredTs=Date.now()-10800001;
   S.sessionStartTime=expiredTs;
   try{localStorage.setItem('rth-session-start-admin',String(expiredTs));}catch(e){}
@@ -4135,7 +4164,7 @@ function stopAdminTimer(){
   render();
   showToast('🔒 Session terminée — visiteurs verrouillés');
 }
-function createRoom(){S.roomCode=Math.random().toString(36).substring(2,8).toUpperCase();try{localStorage.setItem(RK,S.roomCode);}catch(e){}showToast('Room : '+S.roomCode);render();}
+function createRoom(){S.roomCode=Math.random().toString(36).substring(2,8).toUpperCase();try{localStorage.setItem(RK,S.roomCode);}catch(e){}startRoomRequestsListener();showToast('Room : '+S.roomCode);render();}
 function setFreeHours(h){
   S.freeHours=h;
   try{localStorage.setItem('rth-free-hours',String(h));}catch(e){}
