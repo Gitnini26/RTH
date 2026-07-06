@@ -4,7 +4,7 @@
 // network-first avec fallback cache pour tout le reste.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v1';
+const CACHE_VERSION = 'rth-cache-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -61,7 +61,7 @@ self.addEventListener('fetch', (event) => {
       // cache-first pour le reste (CDN, JS externes — changent rarement).
       const isHtml = req.mode === 'navigate' || url.endsWith('.html') || url.endsWith('/');
       if (isHtml) {
-        return fetch(req)
+        return fetch(req, { cache: 'no-store' })
           .then((res) => {
             const clone = res.clone();
             caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
