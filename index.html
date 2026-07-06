@@ -1566,7 +1566,7 @@ function getSessionURLLight(){
   var data=buildSessionData(true);
   try{
     var encoded=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-    return window.location.origin+'?s='+encoded;
+    return window.location.origin+window.location.pathname+'?s='+encoded;
   }catch(e){return null;}
 }
 var _currentQrUrl='';
@@ -1633,21 +1633,21 @@ async function getSessionURL(){
     });
     if(resp.ok){
       var j=await resp.json();
-      if(j&&j.key)return window.location.origin+'?bb='+j.key;
+      if(j&&j.key)return window.location.origin+window.location.pathname+'?bb='+j.key;
     }
   }catch(e){}
 
   // Fallback 1 : compression locale (bon pour ≤5 chansons)
   try{
     var enc=await compressSession(data);
-    var url=window.location.origin+'?z='+enc;
+    var url=window.location.origin+window.location.pathname+'?z='+enc;
     if(url.length>2200)showToast('⚠️ Lien long ('+url.length+'c) — utilise le QR code',5000);
     return url;
   }catch(e2){}
 
   // Fallback 2 : btoa brut
   var fb=btoa(unescape(encodeURIComponent(JSON.stringify(data))));
-  return window.location.origin+'?s='+fb;
+  return window.location.origin+window.location.pathname+'?s='+fb;
 }
 // -- SAUVEGARDE SESSION DANS FIRESTORE (room court) --
 function saveRoomToFirestore(roomCode){
