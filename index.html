@@ -130,6 +130,14 @@
     #perf-next-lbl{font-size:14px;color:rgba(255,255,255,0.85);text-align:center;padding:0 24px}
     #perf-next-song{font-size:17px;font-weight:900;color:#e0a542;text-align:center;padding:0 24px;margin-top:4px}
 
+    /* Bandeau "prochaine chanson" (apparait 10s avant la fin, disparait au changement de chanson) */
+    #perf-upnext-banner{max-height:0;opacity:0;overflow:hidden;flex-shrink:0;display:flex;align-items:center;gap:10px;padding:0 14px;background:rgba(224,165,66,0.1);border-top:1px solid rgba(224,165,66,0.18);transition:max-height 0.35s ease,opacity 0.3s ease,padding 0.35s ease}
+    #perf-upnext-banner.show{max-height:74px;opacity:1;padding:10px 14px}
+    #perf-upnext-icon{font-size:20px;flex-shrink:0}
+    #perf-upnext-lbl{font-size:10px;font-weight:900;letter-spacing:1.5px;color:rgba(255,255,255,0.55)}
+    #perf-upnext-title{font-size:14px;font-weight:900;color:#e0a542;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+    #perf-upnext-line{font-size:12px;color:rgba(255,255,255,0.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
     #perf-footer{padding:11px 13px;border-top:1px solid rgba(224,165,66,0.07);background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);display:flex;gap:8px;flex-shrink:0;align-items:stretch}
 
     /* REGULAR KARAOKE */
@@ -349,6 +357,16 @@
     <div id="perf-chord-grid" style="display:flex;flex-wrap:nowrap;gap:8px;overflow-x:auto;padding-bottom:6px;-webkit-overflow-scrolling:touch"></div>
   </div>
 
+  <!-- Bandeau "prochaine chanson" : apparait 10s avant la fin du morceau en cours -->
+  <div id="perf-upnext-banner">
+    <div id="perf-upnext-icon">🎶</div>
+    <div style="flex:1;min-width:0">
+      <div id="perf-upnext-lbl">PROCHAINE CHANSON</div>
+      <div id="perf-upnext-title"></div>
+      <div id="perf-upnext-line"></div>
+    </div>
+  </div>
+
   <!-- Footer -->
   <div id="perf-footer">
     <button id="perf-prev-btn" onclick="perfPrev()" style="flex:1;padding:12px 4px;border-radius:12px;border:1px solid rgba(224,165,66,0.2);background:transparent;color:#e0a542;font-weight:700;font-size:15px;cursor:pointer">← Préc.</button>
@@ -463,7 +481,8 @@ var PF={
   timer:null, elapsed:0, startRef:0,
   playing:false, autoAdvance:true,
   words:[], idx:-1, totalDur:0,
-  countTimer:null, karaokeOn:false
+  countTimer:null, karaokeOn:false,
+  upNextShown:false
 };
 
 // -- GENRES MUSICAUX --
@@ -1055,6 +1074,12 @@ function renderPerfHTML(items){
 }
 
 function updatePerfKaraoke(t){
+  // Bandeau "prochaine chanson" : apparait 10s avant la fin, disparait dès qu'on repasse au-dessus
+  if(PF.totalDur>0){
+    var remain=PF.totalDur-t;
+    if(remain<=10&&remain>0&&!PF.upNextShown){showUpNextBanner();}
+    else if((remain>10||remain<=0)&&PF.upNextShown){hideUpNextBanner();}
+  }
   var items=PF.words; if(!items.length)return;
   // Chercher uniquement dans les MOTS (paroles), ignorer accords/chord-lines
   var ni=-1;
@@ -1143,8 +1168,39 @@ function refreshPerfKaraBtn(){
   }
 }
 
+// -- BANDEAU "PROCHAINE CHANSON" (apparait 10s avant la fin, disparait au changement de chanson) --
+function getNextPerfSong(){
+  if(S.inGuestPerf) return S.guestPerfSongs[S.guestPerfIndex+1]||null;
+  return S.songs.find(function(sg){return sg.id===S.setlist[S.perfIndex+1];})||null;
+}
+function firstLyricLine(song){
+  if(!song||!song.chordLyrics)return '';
+  var lines=song.chordLyrics.split('\n');
+  for(var i=0;i<lines.length;i++){
+    var t=lines[i].trim();
+    if(!t)continue;
+    if(isChordOnlyLine(t))continue;
+    var clean=t.replace(/\[[^\]]*\]/g,'').replace(/\s+/g,' ').trim();
+    if(clean)return clean;
+  }
+  return '';
+}
+function showUpNextBanner(){
+  var nx=getNextPerfSong(); if(!nx)return;
+  var b=document.getElementById('perf-upnext-banner'); if(!b)return;
+  var t=document.getElementById('perf-upnext-title'); if(t)t.textContent=nx.title;
+  var l=document.getElementById('perf-upnext-line'); if(l)l.textContent=firstLyricLine(nx);
+  b.classList.add('show');
+  PF.upNextShown=true;
+}
+function hideUpNextBanner(){
+  var b=document.getElementById('perf-upnext-banner'); if(b)b.classList.remove('show');
+  PF.upNextShown=false;
+}
+
 // -- COUNTDOWN TO NEXT SONG --
 function launchCountdown(){
+  hideUpNextBanner();
   var nextSong=S.inGuestPerf
     ? S.guestPerfSongs[S.guestPerfIndex+1]
     : S.songs.find(function(sg){return sg.id===S.setlist[S.perfIndex+1];});
@@ -1212,6 +1268,7 @@ function refreshPerfNextBtn(){
 // -- LOAD SONG INTO PERF MODE --
 function loadPerfSong(autoStart){
   var song=gPerfSong(); if(!song)return;
+  hideUpNextBanner();
   // Si mode guest et chanson pas dans S.songs, on l'ajoute temporairement
   if(S.inGuestPerf){
     var local=S.songs.find(function(m){return m.title===song.title&&m.artist===song.artist;});
@@ -1390,6 +1447,7 @@ function togglePerfChords(){
 function exitPerf(){
   stopPerfTimer();
   if(PF.countTimer){clearTimeout(PF.countTimer);PF.countTimer=null;}
+  hideUpNextBanner();
   var ov=document.getElementById('perf-overlay');
   if(ov)ov.classList.remove('show');
   var cp=document.getElementById('perf-chord-panel');
@@ -2798,7 +2856,7 @@ function saveVisitorProfile(){
   // 📧 Vérifier unicité email (sur cet appareil)
   var emailLow=email.trim().toLowerCase();
   try{
-    var regRaw=localStorage.getItem(EMAILS_REG_KEY);
+    var regRaw=localStoragge.getItem(EMAILS_REG_KEY);
     var regMap=regRaw?JSON.parse(regRaw):{};
     var existingVid=regMap[emailLow];
     // Si l'email est déjà pris par un AUTRE VISITOR_ID → refus
@@ -3190,33 +3248,41 @@ function renderSongCardHtml(sg,i,q,currentSL){
   var slBtns=buildSessionBtns(sg.id);
   var tempo=sg.tempo||'normal';
   var tempoBtn='<button onclick="event.stopPropagation();cycleTempo(\''+sg.id+'\')" class="tempo-mini '+TEMPO_CLASS[tempo]+'" title="Tempo">'+TEMPO_ICON[tempo]+' '+TEMPO_LABEL[tempo]+'</button>';
-  var delBtn='<button onclick="event.stopPropagation();deleteSong(\''+sg.id+'\')" style="background:rgba(255,100,100,0.1);border:none;border-radius:8px;padding:4px 8px;cursor:pointer;color:#FF6B6B;font-size:15px">✕</button>';
+  var delBtn='<button onclick="event.stopPropagation();deleteSong(\''+sg.id+'\')" style="background:rgba(255,100,100,0.1);border:none;border-radius:8px;padding:4px 8px;cursor:pointer;color:#FF6B6B;font-size:15px;flex-shrink:0">✕</button>';
   var guestBadge=sg._guestExpiry?('<div id="guest-timer-'+sg.id+'" style="font-size:11px;color:#c4622e;font-weight:700;margin-top:1px">⏳ '+fmtTimeLeft(sg._guestExpiry)+'</div>'):'';
   var re2=q?new RegExp('('+q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')+')','gi'):null;
   var titleHtml=re2?esc(sg.title).replace(re2,'<mark style="background:rgba(255,215,0,0.3);color:#FFD700;border-radius:3px;padding:0 2px">$1</mark>'):esc(sg.title);
   var artistHtml=re2?esc(sg.artist).replace(re2,'<mark style="background:rgba(255,215,0,0.3);color:#FFD700;border-radius:3px;padding:0 2px">$1</mark>'):esc(sg.artist);
   var cardBorder=sg._guestExpiry?'border-color:rgba(196,98,46,0.25);background:rgba(196,98,46,0.04)':'';
   var genreTags=(sg.genres&&sg.genres.length>0)
-    ?('<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:5px">'+sg.genres.map(function(g){
+    ?('<div style="display:flex;gap:5px;flex-wrap:wrap;flex:1;min-width:0">'+sg.genres.map(function(g){
         return '<span style="font-size:12px;font-weight:900;padding:2px 9px;border-radius:8px;background:'+genreColor(g)+';color:'+genreTextColor(g)+';box-shadow:0 1px 3px rgba(0,0,0,0.25)">'+esc(g)+'</span>';
       }).join('')+'</div>')
-    :'';
+    :'<div style="flex:1;min-width:0"></div>';
   return '<div class="song-card" style="animation-delay:'+(i*0.04)+'s;'+cardBorder+'" onclick="openSong(\''+sg.id+'\')">'
     +'<div style="display:flex;align-items:flex-start;gap:10px">'
-      +'<div style="display:flex;align-items:center;gap:10px;flex:1;min-width:0">'
-        +'<div class="song-thumb" style="background:linear-gradient(135deg,'+cc(sg.key||'G')+',rgba(0,0,0,0.4))">'+esc(sg.key||'G')+'</div>'
-        +'<div style="min-width:0;flex:1"><div style="font-weight:700;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">'+titleHtml+'</div>'
-        +'<div style="font-size:13px;color:rgba(255,255,255,0.75)">'+artistHtml+'</div>'
-        +genreTags+guestBadge+'</div>'
+      +'<div class="song-thumb" style="background:linear-gradient(135deg,'+cc(sg.key||'G')+',rgba(0,0,0,0.4));flex-shrink:0">'+esc(sg.key||'G')+'</div>'
+      +'<div style="min-width:0;flex:1;display:flex;flex-direction:column;gap:5px">'
+        // Row 1 : titre (gauche) / AJOUT SESSION (droite)
+        +'<div style="display:flex;align-items:baseline;justify-content:space-between;gap:10px">'
+          +'<div style="font-weight:700;font-size:14px;word-break:break-word;flex:1;min-width:0">'+titleHtml+'</div>'
+          +'<span style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:rgba(255,255,255,0.62);flex-shrink:0;white-space:nowrap">AJOUT SESSION</span>'
+        +'</div>'
+        // Row 2 : artiste (gauche) / S1 S2 S3 + suppr (droite)
+        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+          +'<div style="font-size:13px;color:rgba(255,255,255,0.75);min-width:0;flex:1">'+artistHtml+'</div>'
+          +'<div style="display:flex;gap:5px;align-items:center;flex-shrink:0">'+slBtns+delBtn+'</div>'
+        +'</div>'
+        // Row 3 : genres (gauche, horizontal) / TEMPO (droite)
+        +'<div style="display:flex;align-items:center;justify-content:space-between;gap:10px">'
+          +genreTags
+          +'<div style="display:flex;align-items:center;gap:7px;flex-shrink:0">'
+            +'<span style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:rgba(255,255,255,0.62);white-space:nowrap">TEMPO</span>'
+            +tempoBtn
+          +'</div>'
+        +'</div>'
+        +guestBadge
       +'</div>'
-      +'<div style="display:flex;align-items:center;gap:7px;flex-shrink:0">'
-        +'<span style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:rgba(255,255,255,0.62)">AJOUT SESSION</span>'
-        +'<div style="display:flex;gap:5px;align-items:center">'+slBtns+delBtn+'</div>'
-      +'</div>'
-    +'</div>'
-    +'<div style="display:flex;justify-content:flex-end;align-items:center;gap:7px;margin-top:7px">'
-      +'<span style="font-size:10px;font-weight:800;letter-spacing:0.5px;color:rgba(255,255,255,0.62)">TEMPO</span>'
-      +tempoBtn
     +'</div>'
   +'</div>';
 }
@@ -3930,12 +3996,12 @@ function showSessionPreview(si){
 function closeSessPreview(){document.getElementById('sess-preview-modal').style.display='none';}
 // -- 3 BOUTONS SESSION PAR CHANSON --
 function buildSessionBtns(sgId){
-  var html='<div style="display:flex;gap:3px">';
+  var html='<div style="display:flex;gap:4px">';
   for(var si=0;si<3;si++){
     var sl_i=(si===S.activeSession)?S.setlist:(S.sessions[si]?S.sessions[si].setlist:[]);
     var inI=sl_i&&sl_i.indexOf(sgId)>-1;
     html+='<button onclick="event.stopPropagation();toggleSL(\''+sgId+'\','+si+')" '
-      +'style="width:28px;height:28px;border-radius:7px;border:1px solid '+(inI?'rgba(224,165,66,0.5)':'rgba(196,98,46,0.25)')+';background:'+(inI?'rgba(224,165,66,0.15)':'rgba(196,98,46,0.06)')+';color:'+(inI?'#e0a542':'#c4622e')+';font-size:12px;font-weight:900;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1">'
+      +'style="width:36px;height:36px;border-radius:8px;border:1px solid '+(inI?'rgba(224,165,66,0.5)':'rgba(196,98,46,0.25)')+';background:'+(inI?'rgba(224,165,66,0.15)':'rgba(196,98,46,0.06)')+';color:'+(inI?'#e0a542':'#c4622e')+';font-size:13px;font-weight:900;cursor:pointer;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1">'
       +'<span>'+(inI?'✅':'🎵')+'</span>'
       +'<span style="font-size:10px;letter-spacing:0;opacity:0.75">S'+(si+1)+'</span>'
       +'</button>';
