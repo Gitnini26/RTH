@@ -4,7 +4,7 @@
 // network-first avec fallback cache pour tout le reste.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v6';
+const CACHE_VERSION = 'rth-cache-v7';
 const APP_SHELL = [
   './',
   './index.html',
