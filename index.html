@@ -101,7 +101,7 @@
     #perf-header{padding:10px 14px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(224,165,66,0.07);background:rgba(0,0,0,0.65);backdrop-filter:blur(8px);flex-shrink:0}
     #perf-song-info{flex:1;min-width:0}
     #perf-title{font-size:15px;font-weight:900;color:#e0a542;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    #perf-artist{font-size:12px;color:rgba(255,255,255,0.72);margin-top:1px}
+    #perf-artist{font-size:12px;color:rgba(255,255,255,0.72);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     #perf-progress-wrap{height:3px;background:rgba(224,165,66,0.07);flex-shrink:0}
     #perf-progress-fill{height:100%;background:linear-gradient(90deg,#e0a542,#FFD700,#c4622e);transition:width 0.15s;border-radius:0 2px 2px 0}
 
@@ -291,7 +291,7 @@
     <button onclick="closeGuestSong()" style="background:rgba(255,100,100,0.15);border:none;border-radius:20px;padding:5px 12px;color:#FF6B6B;font-weight:700;font-size:15px;cursor:pointer">← Retour</button>
     <div style="flex:1;min-width:0">
       <div id="gsm-title" style="font-size:15px;font-weight:900;color:#e0a542;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
-      <div id="gsm-artist" style="font-size:12px;color:rgba(255,255,255,0.72)"></div>
+      <div id="gsm-artist" style="font-size:12px;color:rgba(255,255,255,0.72);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"></div>
     </div>
     <div id="gsm-timer" style="font-size:14px;font-weight:900;color:#e0a542;font-family:monospace;flex-shrink:0"></div>
   </div>
@@ -542,6 +542,7 @@ var S={
   songRequests:[],
   guestBrowseAll:false,
   guestBrowseQuery:'',
+  guestSortMode:'',
   adminName:'',pricePerSong:100,payInfo:'',freeHours:3,
   unlockedSongs:[],
   payTarget:null,
@@ -1079,6 +1080,10 @@ function updatePerfKaraoke(t){
     var remain=PF.totalDur-t;
     if(remain<=10&&remain>0&&!PF.upNextShown){showUpNextBanner();}
     else if((remain>10||remain<=0)&&PF.upNextShown){hideUpNextBanner();}
+    // Barre de progression : mise à jour à chaque tick, indépendamment du mode karaoké
+    // (avant, elle ne bougeait que si le mode "mot par mot" était actif — invisible en mode "Visible", donc pour les invités par défaut)
+    var pf=document.getElementById('perf-progress-fill');
+    if(pf)pf.style.width=Math.min(100,(t/PF.totalDur)*100)+'%';
   }
   var items=PF.words; if(!items.length)return;
   // Chercher uniquement dans les MOTS (paroles), ignorer accords/chord-lines
@@ -1107,10 +1112,6 @@ function updatePerfKaraoke(t){
     if(el2){el2.classList.add('active');el2.classList.remove('done');}
   }
   PF.idx=ni;
-  if(PF.totalDur>0){
-    var pf=document.getElementById('perf-progress-fill');
-    if(pf)pf.style.width=Math.min(100,(t/PF.totalDur)*100)+'%';
-  }
 }
 
 // -- PERF TIMER --
@@ -1124,7 +1125,7 @@ function startPerfTimer(){
     updatePerfKaraoke(PF.elapsed);
     if(PF.autoAdvance&&PF.elapsed>=PF.totalDur){
       stopPerfTimer();
-      if(S.perfIndex<S.setlist.length-1){launchCountdown();}
+      if(gPerfIdx()<gPerfTotal()-1){launchCountdown();}
       else{exitPerf();}
     }
   },75);
@@ -1220,8 +1221,16 @@ function launchCountdown(){
       clearTimeout(PF.countTimer);
       var ov2=document.getElementById('perf-overlay');
       if(ov2)ov2.classList.remove('show');
-      S.perfIndex++;
+      if(S.inGuestPerf){
+        S.guestPerfIndex++;
+      } else {
+        S.perfIndex++;
+        S.transposeOffset=0;
+        refreshPerfTransposeBar();
+      }
       loadPerfSong(true);
+      // Sync Firestore → visiteurs, sinon leur vue reste bloquée sur l'ancienne chanson
+      if(!S.inGuestPerf)syncPerfState(true);
       return;
     }
     cnt--;
@@ -1924,14 +1933,28 @@ function renderGuest(){
 
   var browserHtml='';
   if(browseAll&&!freeExpired){
+    var gSort=function(mode,label,icon){
+      var active=S.guestSortMode===mode;
+      return '<button onclick="setGuestSortMode(\''+mode+'\')" style="padding:5px 10px;border-radius:20px;border:1px solid '+(active?'rgba(224,165,66,0.6)':'rgba(224,165,66,0.15)')+';background:'+(active?'rgba(224,165,66,0.18)':'transparent')+';color:'+(active?'#e0a542':'rgba(255,255,255,0.72)')+';font-size:13px;font-weight:700;cursor:pointer">'+icon+' '+label+'</button>';
+    };
+    var guestSortBar='<div style="display:flex;gap:6px;margin-bottom:10px;align-items:center;flex-wrap:wrap">'
+      +'<span style="font-size:12px;color:rgba(255,255,255,0.65);font-weight:700;letter-spacing:1px;flex-shrink:0">TRIER</span>'
+      +gSort('title','Chanson','🎵')
+      +gSort('artist','Artiste','👤')
+      +gSort('genres','Genres musicaux','🎨')
+    +'</div>';
     browserHtml='<div style="margin-bottom:14px">'
+      +guestSortBar
       +'<input id="guest-browse-input" value="'+esc(S.guestBrowseQuery||'')+'" oninput="filterGuestRepertoire()" placeholder="Chercher un titre ou artiste..." style="width:100%;padding:11px 14px;border-radius:12px;background:rgba(0,0,0,0.3);border:1px solid rgba(224,165,66,0.2);color:#fff6ea;font-size:14px;margin-bottom:10px;outline:none"/>'
       +'<div style="font-size:12px;color:rgba(255,255,255,0.5);margin-bottom:8px">💡 Ta demande sera envoyée à l\'admin, qui pourra l\'ajouter à la session</div>'
-      +'<div id="guest-browse-rows">'+renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery||'')+'</div>'
+      +'<div id="guest-browse-rows">'+renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery||'',S.guestSortMode)+'</div>'
     +'</div>';
   }
 
-  return '<div style="background:linear-gradient(135deg,rgba(196,98,46,0.1),rgba(224,165,66,0.05));border:1px solid rgba(196,98,46,0.2);border-radius:18px;padding:16px;margin-bottom:14px">'
+  var guestBannerHtml='<div style="position:relative;overflow:hidden;margin:-18px -16px 12px;padding:0 16px">'+getBannerHtml()+'</div>';
+
+  return guestBannerHtml
+    +'<div style="background:linear-gradient(135deg,rgba(196,98,46,0.1),rgba(224,165,66,0.05));border:1px solid rgba(196,98,46,0.2);border-radius:18px;padding:16px;margin-bottom:14px">'
     +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:4px">'
       +'<div style="font-size:26px">🌺</div>'
       +'<div style="flex:1"><div style="font-size:15px;font-weight:900;color:#c4622e">Session de '+esc(gs.admin)+'</div>'
@@ -1964,11 +1987,18 @@ function refreshGuestSongsFromRoom(manual){
     if(manual)showToast('🔄 Liste mise à jour !');
   }).catch(function(e){console.warn('Refresh guest songs err:',e);});
 }
-function renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,query){
+function renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,query,sortMode){
   var qv=(query||'').toLowerCase().trim();
   var filteredAll=allSongs.filter(function(sg){
     return !qv||(sg.title||'').toLowerCase().includes(qv)||(sg.artist||'').toLowerCase().includes(qv);
   });
+  if(sortMode==='title'){
+    filteredAll=filteredAll.slice().sort(function(a,b){return (a.title||'').toLowerCase().localeCompare((b.title||'').toLowerCase(),'fr');});
+  } else if(sortMode==='artist'){
+    filteredAll=filteredAll.slice().sort(function(a,b){return (a.artist||'').toLowerCase().localeCompare((b.artist||'').toLowerCase(),'fr');});
+  } else if(sortMode==='genres'){
+    filteredAll=filteredAll.slice().sort(function(a,b){return ((a.genres&&a.genres[0])||'').toLowerCase().localeCompare(((b.genres&&b.genres[0])||'').toLowerCase(),'fr');});
+  }
   return filteredAll.map(function(sg){
     var inSetlist=setlistIds.indexOf(sg.id)>=0;
     var alreadyRequested=requestedIds.indexOf(sg.id)>=0;
@@ -1987,6 +2017,10 @@ function renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,query){
     +'</div>';
   }).join('')||'<div style="text-align:center;padding:20px;color:rgba(255,255,255,0.5);font-size:14px">Aucune chanson trouvée</div>';
 }
+function setGuestSortMode(mode){
+  S.guestSortMode=(S.guestSortMode===mode?'':mode);
+  render();
+}
 function filterGuestRepertoire(){
   var inp=document.getElementById('guest-browse-input');
   if(!inp)return;
@@ -1998,7 +2032,7 @@ function filterGuestRepertoire(){
   var allSongs=gs.allSongs||[];
   var setlistIds=(gs.songs||[]).map(function(s){return s.id;});
   var requestedIds=(gs.songRequests||[]).map(function(r){return r.id;});
-  rowsDiv.innerHTML=renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery);
+  rowsDiv.innerHTML=renderGuestRepertoireRows(allSongs,setlistIds,requestedIds,S.guestBrowseQuery,S.guestSortMode);
 }
 function guestRequestSong(songId){
   var gs=S.guestSession;
@@ -3326,6 +3360,10 @@ function renderFiltersPanel(){
   +'</div>';
 }
 
+// Bannière panoramique R.T.H — partagée entre la vue Admin (répertoire) et la vue Invités
+function getBannerHtml(){
+  return '<img src="https://raw.githubusercontent.com/Gitnini26/RTH/main/Gemini_Generated_Image_fzxvyzfzxvyzfzxv.jpg" style="width:100%;display:block;border-radius:14px;margin-bottom:10px" alt="R.T.H" loading="lazy"/>';
+}
 function renderLibrary(){
   var q=(S.searchQ||'').toLowerCase().trim();
   var prog=(S.songs.length/MAX_SONGS)*360;
@@ -3382,7 +3420,7 @@ function renderLibrary(){
     var active=S.sortMode===mode;
     return '<button onclick="S.sortMode=\''+mode+'\';render()" style="padding:5px 10px;border-radius:20px;border:1px solid '+(active?'rgba(224,165,66,0.6)':'rgba(224,165,66,0.15)')+';background:'+(active?'rgba(224,165,66,0.18)':'transparent')+';color:'+(active?'#e0a542':'rgba(255,255,255,0.72)')+';font-size:13px;font-weight:700;cursor:pointer">'+icon+' '+label+'</button>';
   };
-  var svgBanner = '<img src="https://raw.githubusercontent.com/Gitnini26/RTH/main/Gemini_Generated_Image_fzxvyzfzxvyzfzxv.jpg" style="width:100%;display:block;border-radius:14px;margin-bottom:10px" alt="R.T.H" loading="lazy"/>';
+  var svgBanner = getBannerHtml();
   var genreRow=S.sortMode==='genres'?('<div style="display:flex;gap:6px;flex-wrap:wrap;margin:-4px 0 12px">'+renderGenreChipsRow()+'</div>'):'';
   return '<div style="position:relative;overflow:hidden;margin:-18px -16px 0;padding:0 16px">'
     +svgBanner
