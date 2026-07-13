@@ -1198,6 +1198,33 @@ function renderPerfHTML(items){
   }).join('');
 }
 
+// Aperçu (non interactif, texte grisé) de la chanson suivante, affiché sous la chanson en cours
+// pour que la fenêtre affichée montre toujours 2 chansons à la suite sur le même écran.
+function renderPerfPreviewHTML(items){
+  if(!items.length)return '';
+  var byLine={};
+  items.forEach(function(it){if(!byLine[it.line])byLine[it.line]=[];byLine[it.line].push(it);});
+  return Object.values(byLine).map(function(lItems){
+    if(lItems.length===1&&lItems[0].type==='blank')return '<div style="height:12px"></div>';
+    if(lItems.length===1&&lItems[0].type==='chord-line'){
+      var chords=lItems[0].text.trim().split(/\s+/);
+      var boxes=chords.map(function(c){
+        return '<span style="font-size:12px;font-weight:800;letter-spacing:1px;color:rgba(224,165,66,0.4);background:rgba(224,165,66,0.05);border-radius:6px;padding:2px 8px;margin-right:5px;display:inline-block">'+esc(c)+'</span>';
+      }).join('');
+      return '<div style="margin-bottom:4px">'+boxes+'</div>';
+    }
+    var h='<div style="margin-bottom:3px;line-height:1.7">';
+    lItems.forEach(function(it){
+      if(it.type==='blank'||it.type==='chord-line')return;
+      if(it.type==='chord'){
+        h+='<span style="font-size:11px;color:rgba(224,165,66,0.4)">'+esc(it.text)+'</span> ';
+      } else {
+        h+='<span style="font-size:16px;color:rgba(255,246,234,0.5)">'+esc(it.text)+'</span> ';
+      }
+    });
+    h+='</div>'; return h;
+  }).join('');
+}
 function updatePerfKaraoke(t){
   // Bandeau "prochaine chanson" : apparait 10s avant la fin, disparait dès qu'on repasse au-dessus
   if(PF.totalDur>0){
@@ -1252,7 +1279,7 @@ function startPerfTimer(){
     updatePerfKaraoke(PF.elapsed);
     if(PF.autoAdvance&&PF.elapsed>=PF.totalDur){
       stopPerfTimer();
-      if(gPerfIdx()<gPerfTotal()-1){launchCountdown();}
+      if(gPerfIdx()<gPerfTotal()-1){advancePerfSong();}
       else{exitPerf();}
     }
   },75);
@@ -1334,7 +1361,23 @@ function hideUpNextBanner(){
   PF.upNextShown=false;
 }
 
-// -- COUNTDOWN TO NEXT SONG --
+// -- ENCHAÎNEMENT AUTO SANS COUPURE (pas de décompte, pas d'écran de transition) --
+// La chanson suivante était déjà affichée en aperçu sous la chanson en cours (fenêtre glissante) :
+// on bascule directement dessus, elle devient la chanson active/animée.
+function advancePerfSong(){
+  hideUpNextBanner();
+  if(S.inGuestPerf){
+    S.guestPerfIndex++;
+  } else {
+    S.perfIndex++;
+    S.transposeOffset=0;
+    refreshPerfTransposeBar();
+  }
+  loadPerfSong(true);
+  if(!S.inGuestPerf)syncPerfState(true);
+}
+
+// -- COUNTDOWN TO NEXT SONG (plus utilisé pour l'auto-enchaînement, gardé pour référence) --
 function launchCountdown(){
   hideUpNextBanner();
   var nextSong=S.inGuestPerf
@@ -1431,7 +1474,20 @@ function loadPerfSong(autoStart){
 
   var zone=document.getElementById('perf-karaoke');
   if(zone){
-    zone.innerHTML=renderPerfHTML(PF.words);
+    // Aperçu de la chanson suivante, toujours affiché sous la chanson en cours (fenêtre glissante de 2)
+    var nextHtml='';
+    var nextSong=getNextPerfSong();
+    if(nextSong){
+      var nextToPlay=(S.transposeOffset!==0)?Object.assign({},nextSong,{chordLyrics:transposeLyrics(nextSong.chordLyrics,S.transposeOffset)}):nextSong;
+      var savedTotalDur=PF.totalDur; // buildPerfWords recalcule PF.totalDur en effet de bord — on protège celui de la chanson en cours
+      var nextItems=buildPerfWords(nextToPlay);
+      PF.totalDur=savedTotalDur;
+      nextHtml='<div style="margin-top:28px;padding-top:16px;border-top:2px dashed rgba(224,165,66,0.25)">'
+        +'<div style="font-size:12px;font-weight:900;letter-spacing:1px;color:rgba(224,165,66,0.55);margin-bottom:10px">▶ SUIVANT — '+esc(nextSong.title)+'</div>'
+        +renderPerfPreviewHTML(nextItems)
+      +'</div>';
+    }
+    zone.innerHTML=renderPerfHTML(PF.words)+nextHtml;
     zone.scrollTop=0;
     // Mots visibles par défaut (pas de grisage)
     zone.classList.toggle('perf-visible',!PF.karaokeOn);
