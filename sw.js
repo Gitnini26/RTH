@@ -5,7 +5,7 @@
 // le cache en arrière-plan pour la prochaine visite. Cache-first pour le reste.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v3';
+const CACHE_VERSION = 'rth-cache-v4';
 const APP_SHELL = [
   './',
   './index.html',
