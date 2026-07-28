@@ -1,11 +1,16 @@
 // ============================================================
 // R.T.H — Service Worker
-// Stratégie : STALE-WHILE-REVALIDATE pour le shell de l'app (HTML/CSS/JS/CDN) —
-// on sert le cache INSTANTANÉMENT (0 seconde d'attente réseau), puis on met à jour
-// le cache en arrière-plan pour la prochaine visite. Cache-first pour le reste.
+// Stratégie : NETWORK-FIRST pour le HTML (index.html / navigation) -- on va TOUJOURS
+// chercher la dernière version déployée sur le réseau en premier ; le cache ne sert
+// que de secours hors-ligne. Avant, le HTML était lui aussi en stale-while-revalidate
+// (cache servi instantanément, réseau juste pour rafraîchir en arrière-plan) : ça
+// obligeait à recharger la page DEUX FOIS après chaque mise à jour pour voir les
+// changements (1er chargement = ancien cache, 2e = cache tout juste rafraîchi).
+// STALE-WHILE-REVALIDATE reste utilisé pour le reste (CSS/JS/CDN externes, qui
+// changent rarement) : chargement instantané, mise à jour silencieuse en arrière-plan.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v1';
+const CACHE_VERSION = 'rth-cache-v4';
 const APP_SHELL = [
   './',
   './index.html',
@@ -58,6 +63,22 @@ self.addEventListener('fetch', (event) => {
 
   const isHtml = req.mode === 'navigate' || url.endsWith('.html') || url.endsWith('/');
 
+  if (isHtml) {
+    // NETWORK-FIRST : on tente toujours le réseau en premier pour avoir la dernière
+    // version déployée immédiatement (plus besoin de recharger 2 fois). Le cache ne
+    // sert que si le réseau échoue (vraiment hors-ligne).
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const clone = res.clone();
+          caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
+          return res;
+        })
+        .catch(() => caches.match(req).then((cached) => cached || caches.match('./index.html')))
+    );
+    return;
+  }
+
   event.respondWith(
     caches.match(req).then((cached) => {
       // On lance TOUJOURS une requête réseau en arrière-plan pour rafraîchir le cache,
@@ -68,7 +89,7 @@ self.addEventListener('fetch', (event) => {
           caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
           return res;
         })
-        .catch(() => cached || (isHtml ? caches.match('./index.html') : undefined));
+        .catch(() => cached);
 
       // STALE-WHILE-REVALIDATE : si une version est déjà en cache, on la sert
       // IMMÉDIATEMENT (affichage instantané, 0 aller-retour réseau), et la mise
