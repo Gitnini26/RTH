@@ -10,7 +10,7 @@
 // changent rarement) : chargement instantané, mise à jour silencieuse en arrière-plan.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v4';
+const CACHE_VERSION = 'rth-cache-v1';
 const APP_SHELL = [
   './',
   './index.html',
