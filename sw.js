@@ -10,7 +10,7 @@
 // changent rarement) : chargement instantané, mise à jour silencieuse en arrière-plan.
 // Incrémenter CACHE_VERSION à chaque déploiement pour invalider l'ancien cache.
 // ============================================================
-const CACHE_VERSION = 'rth-cache-v1';
+const CACHE_VERSION = 'rth-cache-v5';
 const APP_SHELL = [
   './',
   './index.html',
@@ -67,8 +67,13 @@ self.addEventListener('fetch', (event) => {
     // NETWORK-FIRST : on tente toujours le réseau en premier pour avoir la dernière
     // version déployée immédiatement (plus besoin de recharger 2 fois). Le cache ne
     // sert que si le réseau échoue (vraiment hors-ligne).
+    // cache:'no-store' est essentiel ici : fetch(req) tout court reste soumis au cache HTTP
+    // du NAVIGATEUR (en-dessous du service worker), qui peut renvoyer une reponse "fraiche"
+    // perimee sans repasser par le reseau pendant plusieurs minutes (Cache-Control par defaut
+    // de GitHub Pages) -- ce qui donnait l'impression que des correctifs deja deployes
+    // n'etaient "pas encore visibles". On force ici un VRAI aller-retour reseau a chaque fois.
     event.respondWith(
-      fetch(req)
+      fetch(req, { cache: 'no-store' })
         .then((res) => {
           const clone = res.clone();
           caches.open(CACHE_VERSION).then((c) => c.put(req, clone));
